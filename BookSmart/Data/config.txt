@@ -1,0 +1,2 @@
+DefaultRentalDays=14
+LateFeePerDay=1.5
