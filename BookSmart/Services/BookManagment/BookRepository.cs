@@ -36,12 +36,13 @@ namespace BookSmart.Services.BookManagment
                     continue;
 
                 list.Add(new Book(
-                    parts[0],
-                    parts[1],
-                    parts[2],
-                    bool.Parse(parts[3]),
-                    decimal.Parse(parts[4], CultureInfo.InvariantCulture)
-                ));
+                        parts[0].Trim(),
+                        parts[1].Trim(),
+                        parts[2].Trim(),
+                        bool.Parse(parts[3].Trim()),
+                        decimal.Parse(parts[4].Trim(), CultureInfo.InvariantCulture)
+                        ));
+
             }
 
             return list;
