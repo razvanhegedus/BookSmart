@@ -13,7 +13,8 @@ namespace BookSmart.Services.OrderManagment
 
         public OrderRepository()
         {
-            ordersPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "orders.txt");
+            var projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
+            ordersPath = Path.Combine(projectRoot, "Data", "orders.txt");
         }
 
         public async Task<List<Order>> LoadOrdersAsync()

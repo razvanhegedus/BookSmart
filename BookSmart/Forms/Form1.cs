@@ -14,14 +14,12 @@ namespace BookSmart
 {
     public partial class Form1 : Form
     {
-        // Repositories & services
         private readonly IBookRepository _bookRepository;
         private readonly IRentalRepository _rentalRepository;
         private readonly IOrderRepository _orderRepository;
         private readonly IFeeService _feeService;
         private readonly IIdService _idService;
 
-        // In-memory data
         private List<Book> _books = new();
         private List<Rental> _rentals = new();
         private List<Order> _orders = new();
@@ -42,24 +40,21 @@ namespace BookSmart
             LoadDataAsync();
         }
 
-        // -------------------------------------------------------------
-        // Initial UI setup
-        // -------------------------------------------------------------
         private void ConfigureInitialState()
         {
-            lblAvailability.Text = string.Empty;
-            lblDueDate.Text = string.Empty;
-            lblFeeResult.Text = string.Empty;
-            lblOrderResult.Text = string.Empty;
+            lblAvailability.Text = "";
+            lblDueDate.Text = "";
+            lblFeeResult.Text = "";
+            lblOrderResult.Text = "";
 
             btnRent.Enabled = false;
+            btnReturn.Enabled = false;
+            btnRenew.Enabled = false;
             btnOrder.Enabled = false;
             btnCalculateFee.Enabled = false;
+            txtRenewDays.Enabled = false;
         }
 
-        // -------------------------------------------------------------
-        // Data loading
-        // -------------------------------------------------------------
         private async void LoadDataAsync()
         {
             try
@@ -72,28 +67,33 @@ namespace BookSmart
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to load data: {ex.Message}", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Failed to load data: {ex.Message}");
                 Log("Error loading data.");
             }
         }
 
-        private void Log(string message)
+        private void Log(string msg)
         {
-            listBoxOutput.Items.Add($"{DateTime.Now:HH:mm:ss}  {message}");
+            listBoxOutput.Items.Insert(0, $"{DateTime.Now:HH:mm:ss}  {msg}");
+        }
+
+        private Rental? GetActiveRental(string bookId)
+        {
+            return _rentals
+                .Where(r => r.Book.Id == bookId && !r.ReturnDate.HasValue)
+                .OrderByDescending(r => r.StartDate)
+                .FirstOrDefault();
         }
 
         // -------------------------------------------------------------
-        // SEARCH
+        // SEARCH BOOK
         // -------------------------------------------------------------
         private void btnSearch_Click(object sender, EventArgs e)
         {
             string title = txtSearchTitle.Text.Trim();
-
             if (string.IsNullOrWhiteSpace(title))
             {
-                MessageBox.Show("Please enter a book title.", "Input required",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Please enter a book title.");
                 return;
             }
 
@@ -102,21 +102,36 @@ namespace BookSmart
             if (_selectedBook == null)
             {
                 lblAvailability.Text = "Not found";
-                btnRent.Enabled = false;
-                btnOrder.Enabled = true;        // can order if not found
-                btnCalculateFee.Enabled = false;
+                lblAvailability.ForeColor = Color.Gray;
 
+                btnRent.Enabled = false;
+                btnReturn.Enabled = false;
+                btnRenew.Enabled = false;
+                txtRenewDays.Enabled = false;
+                btnOrder.Enabled = true;
+
+                lblDueDate.Text = "";
                 Log($"Book '{title}' not found.");
                 return;
             }
 
             lblAvailability.Text = _selectedBook.IsAvailable ? "Available" : "Not available";
+            lblAvailability.ForeColor = _selectedBook.IsAvailable ? Color.Green : Color.Red;
+
+            var activeRental = GetActiveRental(_selectedBook.Id);
+            bool isRented = activeRental != null;
 
             btnRent.Enabled = _selectedBook.IsAvailable;
-            btnOrder.Enabled = !_selectedBook.IsAvailable;  // order only if not available
-            btnCalculateFee.Enabled = true;
+            btnReturn.Enabled = isRented;
+            btnRenew.Enabled = isRented;
+            txtRenewDays.Enabled = isRented;
 
-            Log($"Found book: {_selectedBook.Title} (Available: {_selectedBook.IsAvailable})");
+            btnOrder.Enabled = !_selectedBook.IsAvailable;
+            btnCalculateFee.Enabled = isRented;
+
+            lblDueDate.Text = isRented ? activeRental!.DueDate.ToShortDateString() : "";
+
+            Log($"Found '{_selectedBook.Title}' (Available: {_selectedBook.IsAvailable})");
         }
 
         // -------------------------------------------------------------
@@ -130,18 +145,16 @@ namespace BookSmart
                 return;
             }
 
-            string customerName = txtCustomerName.Text.Trim();
-            if (string.IsNullOrWhiteSpace(customerName))
+            string customer = txtCustomerName.Text.Trim();
+            if (string.IsNullOrWhiteSpace(customer))
             {
-                MessageBox.Show("Please enter a customer name.", "Input required",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Enter a customer name.");
                 return;
             }
 
             if (!_selectedBook.IsAvailable)
             {
-                MessageBox.Show("This book is not available for rent.", "Not available",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Book is not available.");
                 return;
             }
 
@@ -150,7 +163,7 @@ namespace BookSmart
 
             var rental = new Rental(
                 _idService.GenerateId("R-"),
-                new Customer(customerName),
+                new Customer(customer),
                 _selectedBook,
                 start,
                 due
@@ -159,59 +172,120 @@ namespace BookSmart
             _rentals.Add(rental);
             _selectedBook.IsAvailable = false;
 
-            try
-            {
-                await _rentalRepository.SaveRentalsAsync(_rentals);
-                await _bookRepository.SaveBooksAsync(_books);
+            await _rentalRepository.SaveRentalsAsync(_rentals);
+            await _bookRepository.SaveBooksAsync(_books);
 
-                lblDueDate.Text = due.ToShortDateString();
-                Log($"Rented '{_selectedBook.Title}' to {customerName}. Due: {due:d}");
-                MessageBox.Show("Book rented successfully.", "Success",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error saving rental: {ex.Message}", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Log("Error saving rental.");
-            }
+            lblDueDate.Text = due.ToShortDateString();
+            lblAvailability.Text = "Not available";
+            lblAvailability.ForeColor = Color.Red;
+
+            Log($"Rented '{_selectedBook.Title}' to {customer}. Due {due:d}");
+            MessageBox.Show("Book rented successfully!");
+
+            btnRent.Enabled = false;
+            btnReturn.Enabled = true;
+            btnRenew.Enabled = true;
+            txtRenewDays.Enabled = true;
+            btnOrder.Enabled = false;
         }
 
         // -------------------------------------------------------------
-        // LATE FEE CALCULATION
+        // RETURN BOOK
+        // -------------------------------------------------------------
+        private async void btnReturn_Click(object sender, EventArgs e)
+        {
+            if (_selectedBook == null)
+            {
+                MessageBox.Show("Search a book first.");
+                return;
+            }
+
+            var rental = GetActiveRental(_selectedBook.Id);
+            if (rental == null)
+            {
+                MessageBox.Show("This book is not currently rented.");
+                return;
+            }
+
+            rental.ReturnDate = DateTime.Now;
+            _selectedBook.IsAvailable = true;
+
+            await _rentalRepository.SaveRentalsAsync(_rentals);
+            await _bookRepository.SaveBooksAsync(_books);
+
+            lblAvailability.Text = "Available";
+            lblAvailability.ForeColor = Color.Green;
+            lblDueDate.Text = "";
+            lblFeeResult.Text = "";
+
+            btnRent.Enabled = true;
+            btnReturn.Enabled = false;
+            btnRenew.Enabled = false;
+            txtRenewDays.Enabled = false;
+
+            Log($"Returned '{_selectedBook.Title}'.");
+            MessageBox.Show("Book returned successfully!");
+        }
+
+        // -------------------------------------------------------------
+        // RENEW RENTAL
+        // -------------------------------------------------------------
+        private async void btnRenew_Click(object sender, EventArgs e)
+        {
+            if (_selectedBook == null)
+            {
+                MessageBox.Show("Search a book first.");
+                return;
+            }
+
+            var rental = GetActiveRental(_selectedBook.Id);
+            if (rental == null)
+            {
+                MessageBox.Show("This book is not currently rented.");
+                return;
+            }
+
+            if (!int.TryParse(txtRenewDays.Text.Trim(), out int extraDays) || extraDays <= 0)
+            {
+                MessageBox.Show("Enter valid number of days.");
+                return;
+            }
+
+            rental.DueDate = rental.DueDate.AddDays(extraDays);
+
+            await _rentalRepository.SaveRentalsAsync(_rentals);
+
+            lblDueDate.Text = rental.DueDate.ToShortDateString();
+
+            Log($"Renewed '{_selectedBook.Title}' for +{extraDays} days. New Due Date: {rental.DueDate:d}");
+            MessageBox.Show("Renew successful!");
+        }
+
+        // -------------------------------------------------------------
+        // CALCULATE LATE FEE
         // -------------------------------------------------------------
         private void btnCalculateFee_Click(object sender, EventArgs e)
         {
             if (_selectedBook == null)
             {
-                MessageBox.Show("Search and select a book first.");
+                MessageBox.Show("Search a book first.");
                 return;
             }
 
-            // Find the active rental for this book (not yet returned)
-            var rental = _rentals
-                .Where(r => r.Book.Id == _selectedBook.Id && !r.ReturnDate.HasValue)
-                .OrderByDescending(r => r.StartDate)
-                .FirstOrDefault();
+            var rental = GetActiveRental(_selectedBook.Id);
 
             if (rental == null)
             {
-                MessageBox.Show("No active rental found for this book.");
+                MessageBox.Show("No active rental.");
                 return;
             }
 
             decimal fee = _feeService.CalculateLateFee(rental, DateTime.Now);
+            lblFeeResult.Text = fee <= 0 ? "No late fee." : $"{fee:0.00} RON";
 
-            if (fee <= 0)
-            {
-                lblFeeResult.Text = "No late fee.";
-                Log($"No late fee for '{rental.Book.Title}'.");
-            }
-            else
-            {
-                lblFeeResult.Text = $"{fee:0.00} RON";
-                Log($"Late fee for '{rental.Book.Title}' = {fee:0.00} RON");
-            }
+            Log(fee <= 0
+                ? $"No late fee for '{rental.Book.Title}'."
+                : $"Late fee: {fee:0.00} RON");
         }
 
         // -------------------------------------------------------------
@@ -220,23 +294,23 @@ namespace BookSmart
         private async void btnOrder_Click(object sender, EventArgs e)
         {
             string title = txtSearchTitle.Text.Trim();
-            string customerName = txtCustomerName.Text.Trim();
+            string customer = txtCustomerName.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(title))
             {
-                MessageBox.Show("Enter a book title to order.");
+                MessageBox.Show("Enter book title.");
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(customerName))
+            if (string.IsNullOrWhiteSpace(customer))
             {
-                MessageBox.Show("Enter a customer name.");
+                MessageBox.Show("Enter customer name.");
                 return;
             }
 
             if (!int.TryParse(txtDeliveryDays.Text.Trim(), out int days) || days <= 0)
             {
-                MessageBox.Show("Enter a valid positive number of delivery days.");
+                MessageBox.Show("Enter valid delivery days.");
                 return;
             }
 
@@ -245,30 +319,23 @@ namespace BookSmart
 
             var order = new Order(
                 _idService.GenerateId("O-"),
-                new Customer(customerName),
+                new Customer(customer),
                 title,
-                string.Empty,            // author not required for order
+                "",
                 orderDate,
                 eta
             );
 
             _orders.Add(order);
 
-            try
-            {
-                await _orderRepository.SaveOrdersAsync(_orders);
+            await _orderRepository.SaveOrdersAsync(_orders);
 
-                lblOrderResult.Text = $"Expected: {eta:d}";
-                Log($"Order created for '{title}' (ETA: {eta:d})");
-                MessageBox.Show("Order saved.", "Success",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error saving order: {ex.Message}", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Log("Error saving order.");
-            }
+            lblOrderResult.Text = $"Expected arrival: {eta:d}";
+
+            Log($"Order created for '{title}' (ETA {eta:d})");
+            MessageBox.Show("Order created!");
         }
+
+        private void listBoxOutput_SelectedIndexChanged(object sender, EventArgs e) { }
     }
 }

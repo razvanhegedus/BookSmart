@@ -1,5 +1,5 @@
-1;The Hobbit;J.R.R. Tolkien;true;2.5
-2;Clean Code;Robert C. Martin;true;3.0
+1;The Hobbit;J.R.R. Tolkien;false;2.5
+2;Clean Code;Robert C. Martin;false;3.0
 3;1984;George Orwell;false;2.0
-4;Atomic Habits;James Clear;true;2.2
+4;Atomic Habits;James Clear;false;2.2
 5;The Pragmatic Programmer;Andrew Hunt;false;3.5

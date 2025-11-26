@@ -13,8 +13,10 @@ namespace BookSmart.Services.RentalManagment
 
         public RentalRepository()
         {
-            rentalsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "rentals.txt");
+            var projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
+            rentalsPath = Path.Combine(projectRoot, "Data", "rentals.txt");
         }
+
 
         public async Task<List<Rental>> LoadRentalsAsync(List<Book> books)
         {

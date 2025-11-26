@@ -14,8 +14,10 @@ namespace BookSmart.Services.BookManagment
 
         public BookRepository()
         {
-            booksPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "books.txt");
+            var projectRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
+            booksPath = Path.Combine(projectRoot, "Data", "books.txt");
         }
+
 
         public async Task<List<Book>> LoadBooksAsync()
         {
