@@ -91,7 +91,7 @@
             labelRentHeader.Size = new Size(152, 15);
             labelRentHeader.TabIndex = 19;
             labelRentHeader.Text = "👤 RENT / RETURN / RENEW";
-       
+            // 
             // labelAvailabilityText
             // 
             labelAvailabilityText.AutoSize = true;
